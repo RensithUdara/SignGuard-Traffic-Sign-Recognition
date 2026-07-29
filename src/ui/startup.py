@@ -1,8 +1,10 @@
 import math
 import time
-from tkinter import Canvas, Frame, Label, filedialog
+from tkinter import Frame, Label, filedialog
 
-from src.config.settings import APP_NAME, APP_SUBTITLE, APP_TAGLINE
+from PIL import Image, ImageTk
+
+from src.config.settings import APP_NAME, APP_SUBTITLE, APP_TAGLINE, LOGO_PATH
 from src.ui.components import make_button, make_panel
 from src.ui.theme import COLORS, FONT_SMALL
 
@@ -66,14 +68,23 @@ class StartupScreen:
             bg="#101719",
         ).pack(anchor="w")
 
-        self.logo_canvas = Canvas(hero, bg="#101719", highlightthickness=0)
-        self.logo_canvas.grid(row=1, column=0, sticky="nsew", padx=34, pady=28)
-        self.logo_canvas.create_line(210, 230, 710, 230, fill="#40555a", width=2)
-        self.logo_canvas.create_polygon(460, 106, 590, 160, 560, 318, 460, 370, 360, 318, 330, 160,
-                                        fill=COLORS["surface_2"], outline=COLORS["accent"], width=3)
-        self.logo_ring = self.logo_canvas.create_oval(372, 146, 548, 322, outline=COLORS["accent_2"], width=3)
-        self.logo_canvas.create_text(460, 226, text="SG", fill=COLORS["text"], font=("Segoe UI", 42, "bold"))
-        self.logo_canvas.create_text(460, 272, text="LK", fill=COLORS["accent"], font=("Segoe UI", 18, "bold"))
+        logo_frame = Frame(hero, bg="#101719")
+        logo_frame.grid(row=1, column=0, sticky="nsew", padx=34, pady=24)
+        logo_frame.grid_rowconfigure(0, weight=1)
+        logo_frame.grid_columnconfigure(0, weight=1)
+
+        self.logo_label = Label(logo_frame, bg="#101719")
+        self.logo_label.grid(row=0, column=0)
+        self.logo_photo = self.load_logo((520, 520))
+        if self.logo_photo:
+            self.logo_label.config(image=self.logo_photo)
+        else:
+            self.logo_label.config(
+                text=APP_NAME,
+                fg=COLORS["accent"],
+                bg="#101719",
+                font=("Segoe UI", 42, "bold"),
+            )
 
         hero_bottom = Frame(hero, bg="#101719")
         hero_bottom.grid(row=2, column=0, sticky="ew", padx=34, pady=(0, 30))
@@ -113,11 +124,19 @@ class StartupScreen:
     def animate_logo(self):
         if not self.frame.winfo_exists():
             return
-        scale = 1.0 + 0.15 * math.sin(time.time() * 3)
-        self.logo_canvas.itemconfig(self.logo_ring, width=max(2, int(3 * scale)))
+        scale = 1.0 + 0.08 * math.sin(time.time() * 3)
+        pad = int(8 * scale)
+        self.logo_label.config(padx=pad, pady=pad)
         self.loading_index = (self.loading_index + 1) % len(self.loading_chars)
         self.loading_label.config(text=f"{self.loading_chars[self.loading_index]} SignGuard model ready")
         self.window.after(120, self.animate_logo)
+
+    def load_logo(self, size):
+        if not LOGO_PATH.exists():
+            return None
+        image = Image.open(LOGO_PATH).convert("RGB")
+        image.thumbnail(size, Image.Resampling.LANCZOS)
+        return ImageTk.PhotoImage(image)
 
     def open_video_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("Video Files", "*.mp4 *.avi *.mov *.mkv")])
