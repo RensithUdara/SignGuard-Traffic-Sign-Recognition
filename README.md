@@ -1,5 +1,9 @@
 # 🛡️ SignGuard LK
 
+<p align="center">
+  <img src="logo.png" alt="SignGuard LK logo" width="260">
+</p>
+
 **Sri Lankan road-sign intelligence for safer driving**
 
 SignGuard LK is a desktop driver-assistance system that detects Sri Lankan traffic signs from a webcam or video file, analyzes driver context such as current speed, and displays real-time visual and voice alerts.
@@ -401,4 +405,3 @@ python app.py
 - **Sign**: traffic sign detection
 - **Guard**: driver safety assistance
 - **LK**: Sri Lanka focus
-
