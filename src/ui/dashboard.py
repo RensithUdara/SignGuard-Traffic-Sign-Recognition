@@ -18,6 +18,7 @@ from src.config.settings import (
     LOGO_PATH,
     SNAPSHOT_PREFIX,
 )
+from src.services.report_service import ReportService
 from src.ui.components import labelled_value, make_button, make_panel, make_stat_chip, make_switch
 from src.ui.theme import COLORS, FONT_BODY, FONT_SECTION, FONT_SMALL, FONT_TITLE
 
@@ -42,6 +43,11 @@ class MainDashboard:
         self.last_spoken_time = 0
         self.last_frame = None
         self.total_detection_count = 0
+        self.session_events = []
+        self.critical_count = 0
+        self.warning_count = 0
+        self.safe_count = 0
+        self.current_alert_text = "No sign detected"
 
         self.tts_enabled = tk.BooleanVar(value=True)
         self.show_boxes = tk.BooleanVar(value=True)
@@ -313,7 +319,22 @@ class MainDashboard:
             font=("Consolas", 9),
         )
         self.history_list.pack(fill="both", expand=True, padx=20, pady=(0, 12))
+        summary = Frame(card, bg=COLORS["surface"])
+        summary.pack(fill="x", padx=20, pady=(0, 12))
+        self.critical_label = self.make_small_count(summary, "Critical", "0", COLORS["danger"])
+        self.warning_label = self.make_small_count(summary, "Warnings", "0", COLORS["warning"])
+        self.safe_label = self.make_small_count(summary, "Safe", "0", COLORS["success"])
         make_button(card, "CLEAR LOG", self.clear_history, "ghost").pack(fill="x", padx=20, pady=(0, 16))
+
+    def make_small_count(self, parent, label_text, value_text, color):
+        item = Frame(parent, bg=COLORS["surface_2"], highlightbackground=COLORS["surface_3"], highlightthickness=1)
+        item.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        Label(item, text=label_text.upper(), font=("Segoe UI", 8, "bold"), fg=COLORS["muted"], bg=COLORS["surface_2"]).pack(
+            anchor="w", padx=10, pady=(8, 0)
+        )
+        value = Label(item, text=value_text, font=("Segoe UI", 14, "bold"), fg=color, bg=COLORS["surface_2"])
+        value.pack(anchor="w", padx=10, pady=(0, 8))
+        return value
 
     def create_actions_panel(self, parent):
         card = make_panel(parent, bg=COLORS["surface"])
@@ -324,12 +345,22 @@ class MainDashboard:
         actions = Frame(card, bg=COLORS["surface"])
         actions.pack(fill="x", padx=20, pady=(0, 20))
         self.pause_button = make_button(actions, "PAUSE STREAM", self.toggle_pause, "primary")
-        self.pause_button.pack(fill="x", pady=(0, 10))
-        make_button(actions, "SAVE ROAD SNAPSHOT", self.save_snapshot, "secondary").pack(fill="x", pady=(0, 10))
-        make_button(actions, "EXPORT GUARD LOG", self.export_history, "secondary").pack(fill="x", pady=(0, 10))
-        make_button(actions, "SWITCH TO CAMERA", self.switch_to_camera, "secondary").pack(fill="x", pady=(0, 10))
-        make_button(actions, "SCAN ANOTHER VIDEO", self.switch_to_video, "secondary").pack(fill="x", pady=(0, 10))
-        make_button(actions, "STOP STREAM", self.stop_stream, "danger").pack(fill="x")
+        buttons = [
+            self.pause_button,
+            make_button(actions, "ROAD SNAPSHOT", self.save_snapshot, "secondary"),
+            make_button(actions, "CAPTURE INCIDENT", self.capture_incident, "secondary"),
+            make_button(actions, "EXPORT CSV", self.export_history, "secondary"),
+            make_button(actions, "HTML REPORT", self.export_html_report, "secondary"),
+            make_button(actions, "TXT REPORT", self.export_text_report, "secondary"),
+            make_button(actions, "CAMERA", self.switch_to_camera, "secondary"),
+            make_button(actions, "VIDEO FILE", self.switch_to_video, "secondary"),
+            make_button(actions, "STOP STREAM", self.stop_stream, "danger"),
+        ]
+        actions.grid_columnconfigure(0, weight=1)
+        actions.grid_columnconfigure(1, weight=1)
+        for index, button in enumerate(buttons):
+            row, column = divmod(index, 2)
+            button.grid(row=row, column=column, sticky="ew", padx=4, pady=4)
 
     def set_blank_frame(self):
         black_img = Image.new("RGB", (1024, 576), color=(2, 7, 18))
@@ -377,10 +408,17 @@ class MainDashboard:
     def clear_history(self):
         self.history_list.delete(0, tk.END)
         self.total_detection_count = 0
+        self.session_events.clear()
+        self.critical_count = 0
+        self.warning_count = 0
+        self.safe_count = 0
         self.detection_count_label.config(text="0")
+        self.critical_label.config(text="0")
+        self.warning_label.config(text="0")
+        self.safe_label.config(text="0")
 
     def export_history(self):
-        if self.history_list.size() == 0:
+        if not self.session_events:
             self.desc_label.config(text="No detection history to export", fg=COLORS["warning"])
             return
         default_name = f"signguard_lk_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -391,13 +429,63 @@ class MainDashboard:
         )
         if not file_path:
             return
-        with open(file_path, "w", encoding="utf-8") as history_file:
-            history_file.write("time,confidence,threat,message\n")
-            for item in reversed(self.history_list.get(0, tk.END)):
-                parts = item.split(None, 3)
-                if len(parts) == 4:
-                    history_file.write(f"{parts[0]},{parts[1]},{parts[2]},{parts[3]}\n")
+        ReportService.export_csv(file_path, self.session_events)
         self.desc_label.config(text="Detection history exported", fg=COLORS["success"])
+
+    def export_html_report(self):
+        self.export_session_report("html")
+
+    def export_text_report(self):
+        self.export_session_report("txt")
+
+    def export_session_report(self, file_type):
+        if not self.session_events:
+            self.desc_label.config(text="No detections available for report", fg=COLORS["warning"])
+            return
+        default_name = f"signguard_lk_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_type}"
+        filetypes = [("HTML Report", "*.html")] if file_type == "html" else [("Text Report", "*.txt")]
+        file_path = filedialog.asksaveasfilename(defaultextension=f".{file_type}", initialfile=default_name, filetypes=filetypes)
+        if not file_path:
+            return
+
+        summary = ReportService.build_summary(
+            self.session_events,
+            self.session_start,
+            time.time(),
+            self.source_name,
+            self.get_runtime_settings(),
+        )
+        if file_type == "html":
+            ReportService.export_html(file_path, summary, self.session_events)
+        else:
+            ReportService.export_text(file_path, summary, self.session_events)
+        self.desc_label.config(text=f"{file_type.upper()} report downloaded", fg=COLORS["success"])
+
+    def capture_incident(self):
+        if self.last_frame is None:
+            self.desc_label.config(text="No frame available for incident capture", fg=COLORS["warning"])
+            return
+        default_name = f"signguard_lk_incident_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".jpg",
+            initialfile=default_name,
+            filetypes=[("JPEG Image", "*.jpg"), ("PNG Image", "*.png")],
+        )
+        if not file_path:
+            return
+        incident_frame = self.last_frame.copy()
+        cv2.rectangle(incident_frame, (0, 0), (1024, 52), (15, 26, 29), -1)
+        cv2.putText(
+            incident_frame,
+            f"INCIDENT: {self.current_alert_text}",
+            (18, 34),
+            cv2.FONT_HERSHEY_DUPLEX,
+            0.7,
+            (45, 212, 191),
+            1,
+        )
+        cv2.imwrite(file_path, incident_frame)
+        self.desc_label.config(text="Incident snapshot captured", fg=COLORS["success"])
 
     def add_history_item(self, event):
         stamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -409,7 +497,43 @@ class MainDashboard:
         while self.history_list.size() > 12:
             self.history_list.delete(tk.END)
         self.total_detection_count += 1
+        self.session_events.append(self.build_event_record(event, stamp))
+        self.update_threat_counts(event.threat_level)
         self.detection_count_label.config(text=str(self.total_detection_count))
+
+    def build_event_record(self, event, stamp):
+        return {
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d") + f" {stamp}",
+            "source": self.source_name,
+            "speed": int(self.speed_slider.get()),
+            "class_name": event.class_name,
+            "label": event.label,
+            "message": event.display_name,
+            "threat": event.threat_level,
+            "confidence": round(event.confidence * 100, 2),
+            "description": event.description,
+        }
+
+    def update_threat_counts(self, threat_level):
+        if threat_level == "CRITICAL":
+            self.critical_count += 1
+            self.critical_label.config(text=str(self.critical_count))
+        elif threat_level == "MODERATE":
+            self.warning_count += 1
+            self.warning_label.config(text=str(self.warning_count))
+        elif threat_level == "SAFE":
+            self.safe_count += 1
+            self.safe_label.config(text=str(self.safe_count))
+
+    def get_runtime_settings(self):
+        return {
+            "confidence_threshold": f"{self.confidence_slider.get()}%",
+            "iou_threshold": f"{self.iou_slider.get()}%",
+            "image_size": int(self.image_size_slider.get()),
+            "accuracy_mode": "on" if self.augment_enabled.get() else "off",
+            "voice_alerts": "on" if self.tts_enabled.get() else "off",
+            "draw_boxes": "on" if self.show_boxes.get() else "off",
+        }
 
     def update_session_metrics(self):
         elapsed = int(time.time() - self.session_start)
@@ -424,6 +548,7 @@ class MainDashboard:
         self.pause_button.config(text="PAUSE STREAM")
         self.source_name = source_name
         self.source_label.config(text=source_name)
+        self.session_start = time.time()
         if self.is_streaming:
             self.set_status("System Active", "success")
         else:
@@ -479,6 +604,7 @@ class MainDashboard:
             "idle": (COLORS["surface_2"], COLORS["text"]),
         }
         bg_color, fg_color = palette[state]
+        self.current_alert_text = text
         self.alert_label.config(text=text, bg=bg_color, fg=fg_color)
         self.desc_label.config(text=description, fg=bg_color if state != "idle" else COLORS["muted"])
 
