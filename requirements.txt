@@ -2,3 +2,5 @@ ultralytics
 opencv-python
 pillow
 pyttsx3
+requests
+pyserial
