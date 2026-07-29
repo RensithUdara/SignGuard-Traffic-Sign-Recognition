@@ -427,13 +427,3 @@ Try:
 pip install -r requirements.txt
 python app.py
 ```
-
----
-
-## 📌 Project Name Meaning
-
-**SignGuard LK**
-
-- **Sign**: traffic sign detection
-- **Guard**: driver safety assistance
-- **LK**: Sri Lanka focus
