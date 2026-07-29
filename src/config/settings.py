@@ -5,6 +5,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 APP_NAME = "SignGuard LK"
 APP_TAGLINE = "Sri Lankan road-sign intelligence for safer driving"
 APP_SUBTITLE = "Real-time sign detection, speed context, and driver alerts"
+LOGO_PATH = ROOT_DIR / "logo.png"
 MODEL_PATH = ROOT_DIR / "best.pt"
 DEFAULT_GPS = "6.9271 N, 79.8612 E"
 DEFAULT_SPEED = 60
