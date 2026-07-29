@@ -10,7 +10,6 @@ from src.config.settings import (
     APP_NAME,
     APP_SUBTITLE,
     DEFAULT_CONFIDENCE,
-    DEFAULT_GPS,
     DEFAULT_IMAGE_SIZE,
     DEFAULT_IOU,
     DEFAULT_MAX_DETECTIONS,
@@ -26,10 +25,11 @@ from src.ui.theme import COLORS, FONT_BODY, FONT_SECTION, FONT_SMALL, FONT_TITLE
 class MainDashboard:
     """Main SignGuard dashboard with real-time detection."""
 
-    def __init__(self, parent_window, detector, speech_service, source, source_name="Camera"):
+    def __init__(self, parent_window, detector, speech_service, location_service, source, source_name="Camera"):
         self.window = parent_window
         self.detector = detector
         self.speech_service = speech_service
+        self.location_service = location_service
         self.source_name = source_name
         self.cap = None
         self.is_streaming = False
@@ -53,6 +53,7 @@ class MainDashboard:
         self.tts_enabled = tk.BooleanVar(value=True)
         self.show_boxes = tk.BooleanVar(value=True)
         self.augment_enabled = tk.BooleanVar(value=False)
+        self.use_live_speed = tk.BooleanVar(value=True)
         self.active_tab = None
         self.tab_buttons = {}
 
@@ -255,7 +256,7 @@ class MainDashboard:
         for column in range(2):
             grid.grid_columnconfigure(column, weight=1)
         self.time_label = self.create_info_tile(grid, 0, 0, "Time", "--:--:--", COLORS["accent_2"])
-        self.gps_label = self.create_info_tile(grid, 0, 1, "GPS", DEFAULT_GPS, COLORS["text"])
+        self.gps_label = self.create_info_tile(grid, 0, 1, "GPS", "Acquiring...", COLORS["text"])
         self.fps_label = self.create_info_tile(grid, 1, 0, "Frame Rate", "0 FPS", COLORS["accent"])
         self.source_tile = self.create_info_tile(grid, 1, 1, "Input", self.source_name, COLORS["text"])
 
@@ -292,6 +293,7 @@ class MainDashboard:
         make_switch(switches, "Voice alerts", self.tts_enabled, self.update_tts_state).pack(fill="x", pady=3)
         make_switch(switches, "Draw detection boxes", self.show_boxes, lambda: None).pack(fill="x", pady=3)
         make_switch(switches, "Accuracy mode (TTA)", self.augment_enabled, self.update_quality_mode).pack(fill="x", pady=3)
+        make_switch(switches, "Use live GPS speed", self.use_live_speed, self.update_speed_source_state).pack(fill="x", pady=3)
         return frame
 
     def create_log_tab(self):
@@ -446,6 +448,12 @@ class MainDashboard:
         state = "enabled" if enabled else "muted"
         self.desc_label.config(text=f"Voice alerts {state}", fg=COLORS["accent"] if enabled else COLORS["muted"])
 
+    def update_speed_source_state(self):
+        if self.use_live_speed.get():
+            self.desc_label.config(text="Using live GPS speed when available", fg=COLORS["accent"])
+        else:
+            self.desc_label.config(text="Using manual speed slider", fg=COLORS["muted"])
+
     def clear_history(self):
         self.history_list.delete(0, tk.END)
         self.total_detection_count = 0
@@ -558,7 +566,7 @@ class MainDashboard:
         return {
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d") + f" {stamp}",
             "source": self.source_name,
-            "speed": int(self.speed_slider.get()),
+            "speed": int(self.get_current_speed()),
             "class_name": event.class_name,
             "label": event.label,
             "message": event.display_name,
@@ -584,6 +592,7 @@ class MainDashboard:
             "iou_threshold": f"{self.iou_slider.get()}%",
             "image_size": int(self.image_size_slider.get()),
             "accuracy_mode": "on" if self.augment_enabled.get() else "off",
+            "speed_source": "live GPS" if self.use_live_speed.get() else "manual slider",
             "voice_alerts": "on" if self.tts_enabled.get() else "off",
             "draw_boxes": "on" if self.show_boxes.get() else "off",
         }
@@ -656,6 +665,7 @@ class MainDashboard:
             return
 
         self.update_session_metrics()
+        self.update_location_display()
 
         if self.is_paused:
             self.window.after(100, self.update_frame)
@@ -667,7 +677,7 @@ class MainDashboard:
             return
 
         self.update_clock_and_fps()
-        current_speed = self.speed_slider.get()
+        current_speed = self.get_current_speed()
         minimum_confidence = self.confidence_slider.get() / 100
         iou_threshold = self.iou_slider.get() / 100
         image_size = int(self.image_size_slider.get())
@@ -716,7 +726,7 @@ class MainDashboard:
         current_time_str = datetime.datetime.now().strftime("%H:%M:%S")
         cv2.putText(frame, f"TIME   {current_time_str}", (36, 58), cv2.FONT_HERSHEY_DUPLEX, 0.62, (238, 245, 255), 1)
         cv2.putText(frame, f"SPEED  {current_speed} km/h", (36, 94), cv2.FONT_HERSHEY_DUPLEX, 0.62, (45, 212, 191), 1)
-        cv2.putText(frame, f"GPS    {DEFAULT_GPS}", (36, 130), cv2.FONT_HERSHEY_DUPLEX, 0.62, (238, 245, 255), 1)
+        cv2.putText(frame, f"GPS    {self.gps_label.cget('text')}", (36, 130), cv2.FONT_HERSHEY_DUPLEX, 0.62, (238, 245, 255), 1)
         cv2.putText(frame, f"FPS    {self.fps}", (36, 166), cv2.FONT_HERSHEY_DUPLEX, 0.62, (96, 165, 250), 1)
         return frame
 
@@ -746,6 +756,24 @@ class MainDashboard:
     def release_capture(self):
         if self.cap is not None and self.cap.isOpened():
             self.cap.release()
+
+    def get_current_speed(self):
+        reading = self.location_service.get_reading()
+        if self.use_live_speed.get() and reading.speed_kmh is not None:
+            speed = int(round(reading.speed_kmh))
+            self.speed_value.config(text=f"{speed} km/h")
+            return speed
+        return self.speed_slider.get()
+
+    def update_location_display(self):
+        reading = self.location_service.get_reading()
+        if reading.latitude is not None and reading.longitude is not None:
+            gps_text = f"{reading.latitude:.5f}, {reading.longitude:.5f}"
+            if reading.source != "GPS":
+                gps_text += " approx"
+            self.gps_label.config(text=gps_text)
+        else:
+            self.gps_label.config(text=reading.status or "GPS unavailable")
 
     def destroy(self):
         self.release_capture()
