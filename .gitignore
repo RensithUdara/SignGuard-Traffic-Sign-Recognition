@@ -25,7 +25,11 @@ report_images.zip
 # App-generated exports
 signguard_lk_snapshot_*.jpg
 signguard_lk_snapshot_*.png
+signguard_lk_incident_*.jpg
+signguard_lk_incident_*.png
 signguard_lk_log_*.csv
+signguard_lk_report_*.html
+signguard_lk_report_*.txt
 detection_history_*.csv
 
 # OS and editor files
