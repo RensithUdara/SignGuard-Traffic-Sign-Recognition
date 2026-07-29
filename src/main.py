@@ -4,6 +4,7 @@ import cv2
 
 from src.services.detector import TrafficSignDetector
 from src.services.speech import SpeechService
+from src.config.settings import APP_NAME
 from src.ui.dashboard import MainDashboard
 from src.ui.startup import StartupScreen
 from src.ui.theme import COLORS
@@ -12,7 +13,7 @@ from src.ui.theme import COLORS
 class TrafficSignApp:
     def __init__(self):
         self.window = tk.Tk()
-        self.window.title("Smart ADAS HUD System")
+        self.window.title(APP_NAME)
         self.window.geometry("1600x950")
         try:
             self.window.state("zoomed")
