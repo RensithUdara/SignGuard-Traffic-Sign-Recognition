@@ -59,7 +59,10 @@ The project combines **YOLOv8**, **OpenCV**, **Tkinter**, and **Text-to-Speech**
 - Show/hide detection boxes
 - Pause/resume stream
 - Save road snapshots
+- Capture incident snapshots with alert text overlay
 - Export SignGuard log as CSV
+- Download full HTML session reports
+- Download plain text session reports
 - Clear detection log
 
 ---
@@ -83,7 +86,7 @@ The main dashboard includes:
 - **Drive Telemetry**: speed, GPS, time, FPS
 - **Vision Tuning**: confidence, IoU, image size, accuracy mode
 - **SignGuard Log**: recent detections
-- **Guard Controls**: pause, snapshot, export, switch input, stop stream
+- **Guard Controls**: pause, snapshot, incident capture, report downloads, switch input, stop stream
 
 ---
 
@@ -312,6 +315,35 @@ CSV columns:
 
 ```text
 time,confidence,threat,message
+```
+
+### Session Reports
+
+Full reports can be downloaded as:
+
+```text
+signguard_lk_report_YYYYMMDD_HHMMSS.html
+signguard_lk_report_YYYYMMDD_HHMMSS.txt
+```
+
+Reports include:
+
+- session source
+- start/end time
+- duration
+- total detections
+- critical/warning/safe counts
+- average confidence
+- top detected signs
+- runtime detection settings
+- full detection event table
+
+### Incident Snapshots
+
+Incident snapshots are saved with alert text embedded into the image:
+
+```text
+signguard_lk_incident_YYYYMMDD_HHMMSS.jpg
 ```
 
 ---
