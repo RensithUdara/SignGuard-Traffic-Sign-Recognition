@@ -5,6 +5,7 @@ from PIL import Image, ImageTk
 
 from src.config.settings import APP_NAME, LOGO_PATH
 from src.services.detector import TrafficSignDetector
+from src.services.location_service import LocationService
 from src.services.speech import SpeechService
 from src.ui.dashboard import MainDashboard
 from src.ui.startup import StartupScreen
@@ -26,6 +27,8 @@ class TrafficSignApp:
 
         self.detector = TrafficSignDetector()
         self.speech_service = SpeechService()
+        self.location_service = LocationService()
+        self.location_service.start()
         self.current_screen = StartupScreen(self.window, self.start_dashboard)
 
     def start_dashboard(self, source, source_name):
@@ -34,6 +37,7 @@ class TrafficSignApp:
             self.window,
             detector=self.detector,
             speech_service=self.speech_service,
+            location_service=self.location_service,
             source=source,
             source_name=source_name,
         )
@@ -56,6 +60,7 @@ class TrafficSignApp:
     def close(self):
         if self.current_screen and hasattr(self.current_screen, "destroy"):
             self.current_screen.destroy()
+        self.location_service.stop()
         self.window.destroy()
 
 
