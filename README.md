@@ -64,6 +64,8 @@ The project combines **YOLOv8**, **OpenCV**, **Tkinter**, and **Text-to-Speech**
 - Download full HTML session reports
 - Download plain text session reports
 - Clear detection log
+- Live GPS location support with USB/NMEA GPS receivers
+- Approximate IP location fallback when GPS hardware is not connected
 
 ---
 
@@ -131,9 +133,10 @@ signguard-lk/
 | `requirements.txt` | Python dependencies for running the app. |
 | `sign.ipynb` | Training, evaluation, accuracy tuning, and export notebook. |
 | `src/main.py` | Application coordinator and Tkinter window setup. |
-| `src/config/settings.py` | App name, model path, default thresholds, GPS, speed, and export prefixes. |
+| `src/config/settings.py` | App name, model path, default thresholds, GPS serial defaults, speed fallback, and export prefixes. |
 | `src/data/road_signs.py` | Sri Lankan traffic sign code-to-name dictionary. |
 | `src/services/detector.py` | YOLOv8 inference and traffic-alert decision logic. |
+| `src/services/location_service.py` | Live GPS/IP location service and GPS speed reader. |
 | `src/services/speech.py` | Text-to-speech warning service. |
 | `src/ui/theme.py` | Colors and font constants. |
 | `src/ui/components.py` | Reusable Tkinter UI components. |
@@ -173,6 +176,8 @@ The app uses:
 - OpenCV
 - Pillow
 - pyttsx3
+- requests
+- pyserial
 - Tkinter
 
 `requirements.txt`:
@@ -182,9 +187,47 @@ ultralytics
 opencv-python
 pillow
 pyttsx3
+requests
+pyserial
 ```
 
 Tkinter is included with most standard Python installations.
+
+---
+
+## 📍 Live GPS and Speed
+
+Earlier versions used a hardcoded GPS coordinate and manual speed slider. The current version uses a real location service:
+
+- **USB/NMEA GPS receiver**: real GPS latitude, longitude, and speed
+- **IP location fallback**: approximate latitude/longitude only
+- **Manual speed slider**: fallback when live GPS speed is unavailable
+
+### Use a USB GPS Device
+
+1. Plug in a USB GPS receiver.
+2. Check the COM port in Windows Device Manager, for example `COM3`.
+3. Set the port before running the app.
+
+PowerShell:
+
+```powershell
+$env:SIGNGUARD_GPS_PORT="COM3"
+$env:SIGNGUARD_GPS_BAUDRATE="9600"
+python app.py
+```
+
+Command Prompt:
+
+```cmd
+set SIGNGUARD_GPS_PORT=COM3
+set SIGNGUARD_GPS_BAUDRATE=9600
+python app.py
+```
+
+### Important Note
+
+Desktop computers usually do not have built-in GPS. Without a USB GPS receiver, SignGuard LK can only show approximate IP-based location, and real vehicle speed is not available. In that case, the speed slider remains as the fallback/manual simulation input.
 
 ---
 
@@ -290,6 +333,7 @@ EPOCHS = 150
 | Inference Image Size | Larger sizes can improve small-sign detection but reduce FPS. |
 | Accuracy Mode | Enables test-time augmentation for better detection at lower speed. |
 | Show Detection Boxes | Toggles visual boxes on the road feed. |
+| Use Live GPS Speed | Uses GPS speed when a USB/NMEA GPS receiver provides it. |
 
 ---
 
